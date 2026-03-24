@@ -1,10 +1,11 @@
-"""QuantScope — Streamlit entry point.
+"""Quant Strategy Lab — Streamlit entry point.
 
 Run with: streamlit run app.py
 
 Session state keys
 ------------------
 prices              pd.DataFrame        full OHLCV (DATA_START → today, all loaded tickers)
+fundamentals        dict[str, dict]     fundamental data per ticker (fetched alongside OHLCV)
 loaded_config       dict                {tickers, start_date, end_date}
 backtest_results    list[BacktestResult]  last run's results (strategies + benchmark)
 """
@@ -13,8 +14,8 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="QuantScope",
-    page_icon="📈",
+    page_title="Quant Strategy Lab",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -28,8 +29,10 @@ from strategies.registry import discover_strategies  # noqa: E402
 from ui.data_preview import render_data_preview  # noqa: E402
 from ui.results import render_results, render_todays_allocation  # noqa: E402
 from ui.sidebar import render_sidebar  # noqa: E402
+from ui.theme import inject_css  # noqa: E402
 
 _PRICES_KEY = "prices"
+_FUNDAMENTALS_KEY = "fundamentals"
 _LOADED_CONFIG_KEY = "loaded_config"
 _RESULTS_KEY = "backtest_results"
 
@@ -72,6 +75,20 @@ def _load_prices(
 
     prices = pd.concat(frames, ignore_index=True).sort_values(["ticker", "date"])
     st.session_state[_PRICES_KEY] = prices
+
+    # Fetch fundamentals for all successfully loaded tickers
+    progress2 = st.progress(0, text="Fetching fundamentals…")
+    fundamentals: dict[str, dict] = {}
+    for i, ticker in enumerate(succeeded):
+        progress2.progress((i + 1) / len(succeeded), text=f"Fundamentals: {ticker}…")
+        try:
+            result = provider.fetch_fundamentals([ticker])
+            fundamentals.update(result)
+        except Exception:
+            pass
+    progress2.empty()
+
+    st.session_state[_FUNDAMENTALS_KEY] = fundamentals
     st.session_state[_LOADED_CONFIG_KEY] = {
         "tickers": succeeded,
         "start_date": start_date,
@@ -90,15 +107,24 @@ def _run_backtest(
     start_date: pd.Timestamp,
     end_date: pd.Timestamp,
     initial_capital: float,
+    benchmark_ticker: str = "SPY",
+    fundamentals: dict[str, dict] | None = None,
 ) -> None:
     """Run the benchmark + selected strategies and store results."""
+    from engine.benchmark import _BENCHMARK_DISPLAY_NAMES  # local import to avoid cycle
+
+    bench_label = _BENCHMARK_DISPLAY_NAMES.get(benchmark_ticker, benchmark_ticker)
+
     # ── Benchmark (always first) ──────────────────────────────────
     status = st.status("Running backtest…", expanded=True)
 
     with status:
-        st.write("Running S&P 500 benchmark…")
+        st.write(f"Running {bench_label} benchmark…")
         try:
-            benchmark = run_benchmark(prices, start_date, end_date, initial_capital)
+            benchmark = run_benchmark(
+                prices, start_date, end_date, initial_capital,
+                benchmark_ticker=benchmark_ticker,
+            )
         except Exception as exc:
             st.error(f"Benchmark failed: {exc}")
             return
@@ -125,6 +151,7 @@ def _run_backtest(
                     end_date=end_date,
                     initial_capital=initial_capital,
                     benchmark_returns=bench_returns,
+                    fundamentals=fundamentals,
                 )
                 strategy_results.append(result)
             except Exception as exc:
@@ -146,8 +173,26 @@ def _run_backtest(
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    st.title("QuantScope")
-    st.subheader("Strategy Racing Dashboard")
+    inject_css()
+    st.markdown(
+        """
+        <div style='padding: 0.5rem 0 0.15rem 0;'>
+            <h1 style='font-size: 1.9rem; font-weight: 700; margin: 0; letter-spacing: -0.5px;
+                       background: linear-gradient(90deg, #4ecdc4 0%, #81a4e8 100%);
+                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                       font-family: "DM Sans", sans-serif;'>
+                Quant Strategy Lab
+            </h1>
+            <p style='color: #636b78; font-size: 0.70rem; margin: 0.25rem 0 0 0;
+                      letter-spacing: 2.5px; font-weight: 600;
+                      font-family: "DM Sans", sans-serif;'>
+                BACKTEST &nbsp;·&nbsp; COMPARE &nbsp;·&nbsp; ALLOCATE
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.divider()
 
     sel = render_sidebar()
 
@@ -155,6 +200,7 @@ def main() -> None:
     start_date = sel["start_date"]
     end_date = sel["end_date"]
     initial_capital = sel["initial_capital"]
+    benchmark_ticker = sel["benchmark_ticker"]
     load_data = sel["load_data"]
     run = sel["run"]
     strategy_ids = sel["selected_strategy_ids"]
@@ -171,6 +217,7 @@ def main() -> None:
 
     # ── Retrieve session state ────────────────────────────────────
     prices: pd.DataFrame | None = st.session_state.get(_PRICES_KEY)
+    fundamentals: dict[str, dict] | None = st.session_state.get(_FUNDAMENTALS_KEY)
 
     if prices is None:
         st.info("Pick assets and a date range in the sidebar, then click **Load Data**.")
@@ -182,11 +229,6 @@ def main() -> None:
 3. **Load Data** — fetches and caches OHLCV prices; inspect the preview below
 4. **Toggle strategies** — mix passive, quant, and ML approaches
 5. **Run Backtest** — walk-forward engine produces equity curves, metrics, and drawdowns
-
-Navigate to the pages in the left panel for:
-- **Strategy Race** — animated equity race chart *(Phase 4)*
-- **Strategy Deep Dive** — single-strategy analysis *(Phase 6)*
-- **Methodology** — mathematical explanations *(Phase 6)*
             """
         )
         return
@@ -200,7 +242,9 @@ Navigate to the pages in the left panel for:
             st.error("Enable at least one strategy before running.")
         else:
             _run_backtest(
-                prices, strategy_ids, universe, start_date, end_date, initial_capital
+                prices, strategy_ids, universe, start_date, end_date,
+                initial_capital, benchmark_ticker=benchmark_ticker,
+                fundamentals=fundamentals,
             )
             st.rerun()
         return
@@ -240,7 +284,7 @@ Navigate to the pages in the left panel for:
         st.divider()
 
     # Always show the data preview below
-    render_data_preview(prices, start_date, end_date)
+    render_data_preview(prices, start_date, end_date, fundamentals=fundamentals)
 
 
 if __name__ == "__main__":

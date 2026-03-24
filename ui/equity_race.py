@@ -27,10 +27,10 @@ from engine.backtest import BacktestResult
 from .colors import assign_colors
 
 # ── Theme ──────────────────────────────────────────────────────────────────────
-_BG      = "#0e1117"   # Streamlit dark page background
-_PLOT_BG = "#16213e"   # slightly lighter dark for chart area
-_GRID    = "#2a2a4a"   # muted grid lines
-_FONT    = "#d0d0d0"   # default label/tick colour
+_BG      = "#0f1116"   # page background (matches config.toml)
+_PLOT_BG = "#161b27"   # chart plot area
+_GRID    = "#252836"   # subtle gridlines
+_FONT    = "#c4cad6"   # axis labels and tick text
 
 _N_FRAMES    = 250     # target number of animation frames
 _FRAME_MS    = 40      # ms per frame during playback  (~25 fps)
@@ -184,11 +184,11 @@ def render_equity_race(
         fd = sampled[k]
         xs = sampled[: k + 1]
 
-        frame_data = (
-            [go.Scatter(x=xs, y=eq_v[r.strategy_id][: k + 1]) for r in all_results]
-            + [go.Scatter(x=xs, y=dd_v[r.strategy_id][: k + 1]) for r in all_results]
-            + [go.Scatter(x=xs, y=rs_v[r.strategy_id][: k + 1]) for r in all_results]
-        )
+        frame_data = []
+        for r in all_results:
+            frame_data.append(go.Scatter(x=xs, y=eq_v[r.strategy_id][: k + 1]))
+            frame_data.append(go.Scatter(x=xs, y=dd_v[r.strategy_id][: k + 1]))
+            frame_data.append(go.Scatter(x=xs, y=rs_v[r.strategy_id][: k + 1]))
 
         lb_text = _leaderboard_html(all_results, eq_v, k, initial_capital)
 
@@ -207,8 +207,8 @@ def render_equity_race(
                             yanchor="top",
                             text=lb_text,
                             showarrow=False,
-                            font=dict(size=11, color=_FONT, family="monospace"),
-                            bgcolor="rgba(22,33,62,0.88)",
+                            font=dict(size=11, color=_FONT, family="JetBrains Mono, monospace"),
+                            bgcolor="rgba(22,27,39,0.92)",
                             bordercolor=_GRID,
                             borderwidth=1,
                             borderpad=8,
@@ -233,8 +233,8 @@ def render_equity_race(
                 yanchor="top",
                 text=_leaderboard_html(all_results, eq_v, 0, initial_capital),
                 showarrow=False,
-                font=dict(size=11, color=_FONT, family="monospace"),
-                bgcolor="rgba(22,33,62,0.88)",
+                font=dict(size=11, color=_FONT, family="JetBrains Mono, monospace"),
+                bgcolor="rgba(22,27,39,0.92)",
                 bordercolor=_GRID,
                 borderwidth=1,
                 borderpad=8,
@@ -297,8 +297,8 @@ def render_equity_race(
                         ],
                     ),
                 ],
-                font=dict(size=12, color=_FONT),
-                bgcolor="#2a2a4a",
+                font=dict(size=12, color=_FONT, family="DM Sans, sans-serif"),
+                bgcolor="#1e2333",
                 bordercolor=_GRID,
                 borderwidth=1,
             )
@@ -314,7 +314,7 @@ def render_equity_race(
                 yanchor="top",
                 pad=dict(b=10, t=60),
                 currentvalue=dict(
-                    font=dict(size=12, color=_FONT),
+                    font=dict(size=12, color=_FONT, family="JetBrains Mono, monospace"),
                     prefix="Date: ",
                     visible=True,
                     xanchor="center",
@@ -322,8 +322,8 @@ def render_equity_race(
                 transition=dict(duration=0),
                 bgcolor=_PLOT_BG,
                 bordercolor=_GRID,
-                tickcolor=_FONT,
-                font=dict(color=_FONT, size=9),
+                tickcolor=_GRID,
+                font=dict(color=_FONT, size=9, family="DM Sans, sans-serif"),
             )
         ],
     )
@@ -387,7 +387,7 @@ def render_equity_race(
     fig.update_layout(
         paper_bgcolor=_BG,
         plot_bgcolor=_PLOT_BG,
-        font=dict(color=_FONT, family="Inter, sans-serif", size=11),
+        font=dict(color=_FONT, family="DM Sans, sans-serif", size=11),
         hovermode="x unified",
         legend=dict(
             orientation="h",
@@ -395,8 +395,8 @@ def render_equity_race(
             y=1.02,
             xanchor="left",
             x=0.0,
-            font=dict(size=11, color=_FONT),
-            bgcolor="rgba(22,33,62,0.7)",
+            font=dict(size=11, color=_FONT, family="DM Sans, sans-serif"),
+            bgcolor="rgba(22,27,39,0.85)",
             bordercolor=_GRID,
             borderwidth=1,
         ),

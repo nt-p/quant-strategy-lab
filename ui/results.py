@@ -18,6 +18,7 @@ from strategies.base import StrategyBase
 
 from .colors import BENCHMARK_COLOR, assign_colors
 from .equity_race import render_equity_race
+from .theme import AXIS_STYLE, BG, CHART_LAYOUT, FONT, GRID, PLOT_BG
 
 
 # ── Public renderers ──────────────────────────────────────────────────────────
@@ -41,20 +42,22 @@ def render_results(
     all_results = strategy_results + [benchmark]
     colors = assign_colors(all_results)
 
-    st.subheader("Equity Curves")
+    _section_header("Equity Curves")
     render_equity_chart(all_results, colors, initial_capital)
 
-    st.subheader("Strategy Comparison")
+    st.divider()
+    _section_header("Strategy Comparison")
     render_metrics_table(all_results, benchmark, colors)
 
-    st.subheader("Drawdown")
+    st.divider()
+    _section_header("Drawdown")
     render_drawdown_chart(all_results, colors)
 
     st.divider()
-    st.subheader("Equity Race")
-    st.caption(
-        "Animated race — strategies compete frame by frame through time. "
-        "Use the **Play** button or drag the time slider to scrub."
+    _section_header(
+        "Equity Race",
+        caption="Animated race — strategies compete frame by frame through time. "
+                "Use the **Play** button or drag the time slider to scrub.",
     )
     render_equity_race(strategy_results, benchmark, initial_capital)
 
@@ -108,15 +111,22 @@ def render_equity_chart(
         )
 
     fig.update_layout(
+        **CHART_LAYOUT,
         xaxis_title=None,
         yaxis_title=f"Portfolio Value ($, start = ${initial_capital:,.0f})",
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+            font=dict(size=11, color=FONT, family="DM Sans, sans-serif"),
+            bgcolor="rgba(22,27,39,0.85)", bordercolor=GRID, borderwidth=1,
+        ),
         margin=dict(l=0, r=0, t=40, b=0),
         height=480,
     )
+    fig.update_xaxes(**AXIS_STYLE)
+    fig.update_yaxes(**AXIS_STYLE)
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -245,14 +255,21 @@ def render_drawdown_chart(
         )
 
     fig.update_layout(
+        **CHART_LAYOUT,
         xaxis_title=None,
         yaxis_title="Drawdown (%)",
         yaxis_ticksuffix="%",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+            font=dict(size=11, color=FONT, family="DM Sans, sans-serif"),
+            bgcolor="rgba(22,27,39,0.85)", bordercolor=GRID, borderwidth=1,
+        ),
         margin=dict(l=0, r=0, t=40, b=0),
         height=320,
     )
+    fig.update_xaxes(**AXIS_STYLE)
+    fig.update_yaxes(**AXIS_STYLE)
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -301,12 +318,18 @@ def render_todays_allocation(
             continue
         try:
             raw_weights = strategy.get_weights(prices, current_date, universe)
-            # Normalise to sum exactly to 1.0
             total = sum(raw_weights.values())
-            if total > 1e-9:
+            if total > 1.0 + 1e-6:
+                # Mirror engine: normalise down, no cash
                 weights = {t: w / total for t, w in raw_weights.items() if w > 1e-9}
+            elif total > 1e-9:
+                # Keep invested weights as-is; remainder is cash
+                weights = {t: w for t, w in raw_weights.items() if w > 1e-9}
+                cash_w = 1.0 - sum(weights.values())
+                if cash_w > 1e-9:
+                    weights["CASH"] = cash_w
             else:
-                weights = {}
+                weights = {"CASH": 1.0}
         except Exception as exc:
             st.warning(f"{result.strategy_name}: could not compute today's weights — {exc}")
             continue
@@ -319,10 +342,12 @@ def render_todays_allocation(
         return
 
     # ── Section header ─────────────────────────────────────────────────────────
-    st.subheader("Today's Allocation")
-    st.caption(
-        f"What each strategy would hold today · as of **{current_date.strftime('%Y-%m-%d')}** "
-        f"· based on ${initial_capital:,.0f} initial capital"
+    _section_header(
+        "Today's Allocation",
+        caption=(
+            f"What each strategy would hold today · as of **{current_date.strftime('%Y-%m-%d')}** "
+            f"· based on ${initial_capital:,.0f} initial capital"
+        ),
     )
 
     # ── Per-strategy: table + donut ────────────────────────────────────────────
@@ -366,11 +391,12 @@ def render_todays_allocation(
                     ),
                     marker=dict(
                         colors=_pie_colors(len(df_weights), color),
-                        line=dict(color="#1a1a2e", width=1),
+                        line=dict(color=BG, width=1),
                     ),
                 )
             )
             fig.update_layout(
+                **CHART_LAYOUT,
                 showlegend=False,
                 margin=dict(l=0, r=0, t=0, b=0),
                 height=260,
@@ -412,18 +438,37 @@ def render_todays_allocation(
         )
 
     fig_bar.update_layout(
+        **CHART_LAYOUT,
         barmode="group",
         xaxis_title="Ticker",
         yaxis_title="Weight (%)",
         yaxis_ticksuffix="%",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+            font=dict(size=11, color=FONT, family="DM Sans, sans-serif"),
+            bgcolor="rgba(22,27,39,0.85)", bordercolor=GRID, borderwidth=1,
+        ),
         margin=dict(l=0, r=0, t=40, b=0),
         height=380,
     )
+    fig_bar.update_xaxes(**AXIS_STYLE)
+    fig_bar.update_yaxes(**AXIS_STYLE)
     st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _section_header(title: str, caption: str | None = None) -> None:
+    """Render a styled section header consistent with the dark theme."""
+    st.markdown(
+        f"<h3 style='font-size:1.0rem;font-weight:600;margin:0.25rem 0 0.15rem 0;"
+        f"color:#e8ecf0;letter-spacing:-0.2px;"
+        f"font-family:\"DM Sans\",sans-serif;'>{title}</h3>",
+        unsafe_allow_html=True,
+    )
+    if caption:
+        st.caption(caption)
+
 
 def _hex_with_alpha(hex_color: str, alpha: float) -> str:
     """Convert '#rrggbb' + alpha to 'rgba(r,g,b,a)' string."""
@@ -451,10 +496,10 @@ def _pie_colors(n: int, base_color: str) -> list[str]:
     br, bg, bb = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     result = []
     for i in range(n):
-        # Blend toward #2a2a4a (dark background) as slices get smaller
+        # Blend toward #1e2333 (chart dark bg) as slices get smaller
         t = i / max(n - 1, 1)
-        r = int(br + (42 - br) * t)
-        g = int(bg + (42 - bg) * t)
-        b = int(bb + (74 - bb) * t)
+        r = int(br + (30 - br) * t)
+        g = int(bg + (35 - bg) * t)
+        b = int(bb + (51 - bb) * t)
         result.append(f"#{r:02x}{g:02x}{b:02x}")
     return result

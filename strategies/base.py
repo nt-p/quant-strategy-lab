@@ -56,6 +56,7 @@ class StrategyBase(ABC):
         prices: pd.DataFrame,
         current_date: pd.Timestamp,
         universe: list[str],
+        fundamentals: dict[str, dict] | None = None,
     ) -> dict[str, float]:
         """Compute portfolio weights for the given rebalance date.
 
@@ -70,6 +71,12 @@ class StrategyBase(ABC):
             The rebalance date. Only use data <= this date.
         universe : list[str]
             Tickers available in the current universe.
+        fundamentals : dict[str, dict] or None
+            Optional fundamental data keyed by ticker.  Each value is a dict
+            with keys: market_cap, trailing_pe, price_to_book, dividend_yield,
+            revenue_growth, earnings_growth (any may be None if unavailable).
+            Existing strategies that do not declare this parameter continue to
+            work — the engine detects the signature and omits it when absent.
 
         Returns
         -------

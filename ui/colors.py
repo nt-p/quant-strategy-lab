@@ -8,23 +8,23 @@ from __future__ import annotations
 
 from engine.backtest import BacktestResult
 
-# Ordered palette — vivid, high-contrast, colourblind-friendly where possible
+# Premium fintech palette — harmonious, clearly distinguishable on dark bg
 _PALETTE = [
-    "#00b4d8",  # sky blue
-    "#e63946",  # red
-    "#2dc653",  # green
-    "#f4a261",  # orange
-    "#c77dff",  # purple
-    "#f1c40f",  # yellow
-    "#ff6b9d",  # pink
-    "#06d6a0",  # teal
-    "#ff9f1c",  # amber
-    "#a8dadc",  # pale cyan
-    "#e9c46a",  # sand
-    "#264653",  # dark teal
+    "#4ecdc4",  # muted teal (primary accent)
+    "#f56565",  # soft coral
+    "#f6ad55",  # warm amber
+    "#9f7aea",  # soft purple
+    "#63b3ed",  # sky blue
+    "#68d391",  # sage green
+    "#fc8181",  # rose
+    "#76e4f7",  # light cyan
+    "#d4a853",  # warm gold
+    "#b794f4",  # lavender
+    "#81e6d9",  # mint
+    "#c6a96e",  # sand
 ]
 
-BENCHMARK_COLOR = "#adb5bd"  # grey
+BENCHMARK_COLOR = "#94a3b8"  # slate grey
 
 
 def assign_colors(results: list[BacktestResult]) -> dict[str, str]:

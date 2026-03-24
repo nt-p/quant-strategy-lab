@@ -208,6 +208,9 @@ __marimo__/
 
 CLAUDE.md
 
+# Claude Code
+.claude/
+
 # QuantScope specific
 data/cache/
 *.parquet

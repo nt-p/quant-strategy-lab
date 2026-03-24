@@ -19,7 +19,9 @@ reflects the true cost of getting back to target weights.
 
 from __future__ import annotations
 
+import inspect
 import math
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -70,6 +72,7 @@ def run_backtest(
     end_date: pd.Timestamp,
     initial_capital: float = 100_000.0,
     benchmark_returns: list[float] | None = None,
+    fundamentals: dict[str, dict] | None = None,
 ) -> BacktestResult:
     """Run a walk-forward backtest for one strategy.
 
@@ -90,11 +93,19 @@ def run_backtest(
     benchmark_returns : list[float] | None
         Aligned daily benchmark returns, used for information ratio.
         If None, excess metrics will be NaN.
+    fundamentals : dict[str, dict] or None
+        Optional fundamental data keyed by ticker (see DataSource.fetch_fundamentals).
+        Passed to get_weights() only for strategies whose signature declares the
+        ``fundamentals`` parameter; older strategies receive only (prices, date, universe).
 
     Returns
     -------
     BacktestResult
     """
+    # Pre-compute whether this strategy's get_weights accepts fundamentals
+    _strategy_accepts_fundamentals = (
+        "fundamentals" in inspect.signature(strategy.get_weights).parameters
+    )
     # ── 0. Training (ML strategies) ───────────────────────────────
     if strategy.requires_training():
         train_prices = prices[prices["date"] < start_date]
@@ -150,11 +161,30 @@ def run_backtest(
         if should_rebalance:
             signal_date = trading_days[i - 1] if i > 0 else today
             prices_slice = prices[prices["date"] <= signal_date]
-            new_weights = strategy.get_weights(prices_slice, signal_date, available)
-            # Normalise (guard against strategies returning != 1.0)
+            if _strategy_accepts_fundamentals:
+                new_weights = strategy.get_weights(
+                    prices_slice, signal_date, available, fundamentals=fundamentals
+                )
+            else:
+                new_weights = strategy.get_weights(prices_slice, signal_date, available)
+            # Cash handling: remainder below 1.0 → CASH; above 1.0 → normalise down + warn.
             total_w = sum(new_weights.values())
-            if total_w > 1e-9:
+            if total_w > 1.0 + 1e-6:
+                warnings.warn(
+                    f"Strategy '{strategy.strategy_id}' returned weights summing to "
+                    f"{total_w:.6f} (> 1.0). Normalising down to 1.0.",
+                    stacklevel=2,
+                )
                 new_weights = {t: w / total_w for t, w in new_weights.items()}
+                cash_weight = 0.0
+            elif total_w > 1e-9:
+                cash_weight = 1.0 - total_w
+            else:
+                # All-cash allocation
+                new_weights = {}
+                cash_weight = 1.0
+            if cash_weight > 1e-9:
+                new_weights["CASH"] = cash_weight
 
             # Turnover = half the sum of absolute weight changes
             if current_weights:
@@ -181,6 +211,10 @@ def run_backtest(
         next_weights: dict[str, float] = {}
 
         for ticker, w in current_weights.items():
+            if ticker == "CASH":
+                # Cash earns 0% — dollar value unchanged, weight drifts with portfolio
+                next_weights["CASH"] = w
+                continue
             r = float(row.get(ticker, float("nan")))
             if math.isnan(r):
                 r = 0.0
@@ -201,9 +235,12 @@ def run_backtest(
         daily_weights.append(dict(current_weights))
 
     # ── 4. Build weights_history {ticker: [daily_weight]} ─────────
-    weights_history: dict[str, list[float]] = {t: [] for t in available}
+    # Include CASH only if the strategy held cash on at least one day
+    has_cash = any("CASH" in day_w for day_w in daily_weights)
+    tracked = list(available) + (["CASH"] if has_cash else [])
+    weights_history: dict[str, list[float]] = {t: [] for t in tracked}
     for day_w in daily_weights:
-        for t in available:
+        for t in tracked:
             weights_history[t].append(day_w.get(t, 0.0))
 
     # ── 5. Metrics ────────────────────────────────────────────────

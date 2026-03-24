@@ -52,6 +52,34 @@ class _NeverTrades(StrategyBase):
         return {}
 
 
+class _HalfInvested(StrategyBase):
+    """Puts 50% into the first ticker, leaving 50% as CASH."""
+
+    strategy_id = "test_half_invested"
+    name = "Test Half Invested"
+    category = StrategyCategory.PASSIVE
+    description = "Test only"
+    long_description = ""
+    rebalance_frequency = RebalanceFrequency.NEVER
+
+    def get_weights(self, prices, current_date, universe):
+        return {universe[0]: 0.5}
+
+
+class _OverInvested(StrategyBase):
+    """Returns weights summing to 1.5 — engine must normalise down."""
+
+    strategy_id = "test_over_invested"
+    name = "Test Over Invested"
+    category = StrategyCategory.PASSIVE
+    description = "Test only"
+    long_description = ""
+    rebalance_frequency = RebalanceFrequency.NEVER
+
+    def get_weights(self, prices, current_date, universe):
+        return {t: 0.75 for t in universe[:2]}
+
+
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -262,6 +290,27 @@ def spy_prices():
     return pd.DataFrame(rows)
 
 
+@pytest.fixture
+def stw_prices():
+    """Synthetic STW.AX-like price series over 252 trading days."""
+    dates = pd.bdate_range("2021-01-04", periods=252, tz="UTC")
+    rng = np.random.default_rng(42)
+    close = 60.0 * np.cumprod(1 + rng.normal(0.0003, 0.008, len(dates)))
+    rows = [
+        {
+            "date": d,
+            "ticker": "STW.AX",
+            "open": c,
+            "high": c * 1.002,
+            "low": c * 0.998,
+            "close": c,
+            "volume": 5_000_000,
+        }
+        for d, c in zip(dates, close)
+    ]
+    return pd.DataFrame(rows)
+
+
 def test_buy_and_hold_spy_matches_benchmark(spy_prices):
     """BuyAndHold on [SPY] must produce an equity curve identical to run_benchmark().
 
@@ -290,3 +339,137 @@ def test_buy_and_hold_spy_matches_benchmark(spy_prices):
         assert s == pytest.approx(b, rel=1e-6), (
             f"Equity mismatch on day {i}: strategy={s:.4f}, benchmark={b:.4f}"
         )
+
+
+def test_benchmark_stw_ax_equity_starts_at_capital(stw_prices):
+    """run_benchmark with STW.AX must produce a valid equity curve starting at initial_capital."""
+    from engine.benchmark import run_benchmark
+
+    prices = stw_prices
+    start = prices["date"].min()
+    end = prices["date"].max()
+    capital = 100_000.0
+
+    result = run_benchmark(prices, start, end, capital, benchmark_ticker="STW.AX")
+
+    assert result.strategy_id == "benchmark_stw_ax"
+    assert result.strategy_name == "S&P/ASX 200 (STW.AX)"
+    assert result.category == "benchmark"
+    assert result.equity[0] == pytest.approx(capital)
+    assert len(result.equity) == len(result.dates)
+    assert all(e > 0 for e in result.equity)
+
+
+def test_buy_and_hold_stw_ax_matches_benchmark(stw_prices):
+    """BuyAndHold on [STW.AX] must produce an equity curve matching run_benchmark(STW.AX)."""
+    from engine.benchmark import run_benchmark
+    from strategies.buy_and_hold import BuyAndHold
+
+    prices = stw_prices
+    start = prices["date"].min()
+    end = prices["date"].max()
+    capital = 100_000.0
+
+    strategy_result = run_backtest(
+        BuyAndHold(), prices, ["STW.AX"], start, end, capital
+    )
+    benchmark_result = run_benchmark(prices, start, end, capital, benchmark_ticker="STW.AX")
+
+    assert len(strategy_result.equity) == len(benchmark_result.equity)
+    for i, (s, b) in enumerate(zip(strategy_result.equity, benchmark_result.equity)):
+        assert s == pytest.approx(b, rel=1e-6), (
+            f"Equity mismatch on day {i}: strategy={s:.4f}, benchmark={b:.4f}"
+        )
+
+
+# ── Cash support tests ────────────────────────────────────────────────────────
+
+@pytest.fixture
+def volatile_single_ticker_prices():
+    """Single ticker with realistic random returns (non-trivial volatility)."""
+    rng = np.random.default_rng(7)
+    dates = pd.bdate_range("2021-01-04", periods=252, tz="UTC")
+    close = 100.0 * np.cumprod(1 + rng.normal(0.0005, 0.02, len(dates)))
+    rows = [
+        {
+            "date": d, "ticker": "AAAA",
+            "open": c, "high": c, "low": c, "close": c, "volume": 1_000_000,
+        }
+        for d, c in zip(dates, close)
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_half_invested_cash_in_weights_history(volatile_single_ticker_prices):
+    """Strategy returning 0.5 weight must produce CASH key in weights_history."""
+    prices = volatile_single_ticker_prices
+    start, end = prices["date"].min(), prices["date"].max()
+    result = run_backtest(_HalfInvested(), prices, ["AAAA"], start, end)
+    assert "CASH" in result.weights_history, "CASH must appear in weights_history"
+    # On day 0, CASH weight ≈ 0.5 (exact at first rebalance)
+    assert result.weights_history["CASH"][0] == pytest.approx(0.5, abs=1e-6)
+
+
+def test_half_invested_lower_vol_than_fully_invested(volatile_single_ticker_prices):
+    """50% invested + 50% cash must have strictly lower volatility than 100% invested."""
+    prices = volatile_single_ticker_prices
+    start, end = prices["date"].min(), prices["date"].max()
+
+    full_result = run_backtest(_SingleAssetBuyHold(), prices, ["AAAA"], start, end)
+    half_result = run_backtest(_HalfInvested(), prices, ["AAAA"], start, end)
+
+    full_vol = float(np.std(full_result.returns[1:]))
+    half_vol = float(np.std(half_result.returns[1:]))
+    assert half_vol < full_vol, (
+        f"Half-invested vol ({half_vol:.6f}) must be < fully-invested vol ({full_vol:.6f})"
+    )
+
+
+def test_half_invested_first_day_return_is_half_asset(volatile_single_ticker_prices):
+    """On day 1 (right after the initial 50/50 allocation) port return = 0.5 * asset return."""
+    prices = volatile_single_ticker_prices
+    start, end = prices["date"].min(), prices["date"].max()
+    result = run_backtest(_HalfInvested(), prices, ["AAAA"], start, end)
+
+    close = (
+        prices.pivot_table(values="close", index="date", columns="ticker")
+        .sort_index()
+    )
+    asset_ret_day1 = close["AAAA"].pct_change().iloc[1]
+    assert result.returns[1] == pytest.approx(0.5 * asset_ret_day1, abs=1e-9), (
+        f"Day 1: expected {0.5 * asset_ret_day1:.8f}, got {result.returns[1]:.8f}"
+    )
+
+
+def test_over_invested_normalised_and_warns(two_ticker_prices):
+    """Weights summing > 1.0 must be normalised to 1.0 and emit a UserWarning."""
+    prices = two_ticker_prices
+    start, end = prices["date"].min(), prices["date"].max()
+
+    import warnings as _warnings
+    with _warnings.catch_warnings(record=True) as caught:
+        _warnings.simplefilter("always")
+        result = run_backtest(_OverInvested(), prices, ["AAAA", "BBBB"], start, end)
+
+    assert any("normalis" in str(w.message).lower() for w in caught), (
+        "Expected a normalisation warning for over-invested strategy"
+    )
+    # No cash should be held when weights were normalised down
+    cash_weights = result.weights_history.get("CASH", [0.0] * len(result.dates))
+    assert all(abs(w) < 1e-9 for w in cash_weights), (
+        "Over-invested strategy must not produce cash after normalisation"
+    )
+
+
+def test_all_cash_equity_stays_flat(volatile_single_ticker_prices):
+    """A strategy returning {} must hold all cash and produce a flat equity curve."""
+    prices = volatile_single_ticker_prices
+    start, end = prices["date"].min(), prices["date"].max()
+    capital = 50_000.0
+    result = run_backtest(_NeverTrades(), prices, ["AAAA"], start, end, capital)
+
+    assert all(e == pytest.approx(capital) for e in result.equity), (
+        "All-cash portfolio equity must remain constant at initial_capital"
+    )
+    assert "CASH" in result.weights_history
+    assert all(abs(w - 1.0) < 1e-6 for w in result.weights_history["CASH"])
