@@ -197,6 +197,51 @@ def _get_asset_info(ticker: str) -> dict:
     return cache[ticker]
 
 
+def _get_top_holdings(ticker: str) -> list[tuple[str, float | None]]:
+    """Fetch top 5 holdings for an ETF/fund.
+
+    Tries funds_data.top_holdings first, then falls back to info["holdings"].
+    Returns list of (name, percent_as_decimal) tuples (at most 5), or [] if unavailable.
+    """
+    cache: dict = st.session_state.setdefault("_holdings_cache", {})
+    if ticker in cache:
+        return cache[ticker]
+
+    result: list[tuple[str, float | None]] = []
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker)
+        try:
+            df = t.funds_data.top_holdings
+            if df is not None and not df.empty:
+                for _, row in df.head(5).iterrows():
+                    name = str(row.get("holdingName") or row.name or "—")
+                    pct_raw = row.get("Holding Percent") or row.get("holdingPercent")
+                    try:
+                        pct: float | None = float(pct_raw) if pct_raw is not None else None
+                    except (TypeError, ValueError):
+                        pct = None
+                    result.append((name, pct))
+        except Exception:
+            pass
+
+        if not result:
+            info = _get_asset_info(ticker)
+            for h in (info.get("holdings") or [])[:5]:
+                name = h.get("holdingName") or h.get("symbol") or "—"
+                pct_raw = h.get("holdingPercent")
+                try:
+                    pct = float(pct_raw) if pct_raw is not None else None
+                except (TypeError, ValueError):
+                    pct = None
+                result.append((name, pct))
+    except Exception:
+        pass
+
+    cache[ticker] = result
+    return result
+
+
 def _fmt_market_cap(v: float | None) -> str:
     if v is None or not math.isfinite(float(v)):
         return "—"
@@ -239,25 +284,55 @@ def _asset_type_label(info: dict) -> str:
 
 
 def _ytd_and_1y_returns(ticker: str, prices: pd.DataFrame | None) -> tuple[float | None, float | None]:
-    """Compute YTD and 1Y returns from the already-fetched prices DataFrame."""
-    if prices is None or ticker not in prices.columns:
+    """Compute YTD and 1Y returns from the prices DataFrame, with a yfinance fallback.
+
+    prices must contain close price levels (not returns). Falls back to a fresh
+    yfinance fetch when the session-state prices are missing or too short for a
+    252-trading-day lookback.
+    """
+    s: pd.Series | None = None
+
+    if prices is not None and ticker in prices.columns:
+        s = prices[ticker].dropna()
+
+    # Fetch from yfinance if prices are missing or too short for a 1Y calculation
+    if s is None or len(s) < 253:
+        try:
+            import yfinance as yf
+            pcache: dict = st.session_state.setdefault("_price_fallback_cache", {})
+            if ticker not in pcache:
+                raw = yf.download(ticker, period="2y", auto_adjust=True, progress=False)
+                if not raw.empty:
+                    close_col = raw["Close"] if "Close" in raw.columns else raw.iloc[:, 0]
+                    pcache[ticker] = close_col.squeeze().dropna()
+                else:
+                    pcache[ticker] = pd.Series(dtype=float)
+            fetched: pd.Series = pcache[ticker]
+            if s is None or len(fetched) > len(s):
+                s = fetched
+        except Exception:
+            pass
+
+    if s is None or len(s) < 2:
         return None, None
-    s = prices[ticker].dropna()
-    if len(s) < 2:
-        return None, None
-    latest = s.iloc[-1]
+
+    latest = float(s.iloc[-1])
     latest_date = s.index[-1]
 
-    # YTD: first trading day of the current year
+    # YTD: price on the first trading day of the current year
     ytd_return: float | None = None
     year_start = s[s.index.year == latest_date.year]
     if len(year_start) > 0:
-        ytd_return = float(latest / year_start.iloc[0] - 1)
+        first_price = float(year_start.iloc[0])
+        if first_price != 0:
+            ytd_return = latest / first_price - 1
 
-    # 1Y: 252 trading days back
+    # 1Y: price 252 trading days ago
     one_year_return: float | None = None
     if len(s) >= 253:
-        one_year_return = float(latest / s.iloc[-253] - 1)
+        price_1y = float(s.iloc[-253])
+        if price_1y != 0:
+            one_year_return = latest / price_1y - 1
 
     return ytd_return, one_year_return
 
@@ -309,8 +384,10 @@ def _render_asset_cards(
     for i in range(0, n, cols_per_row):
         rows_of_tickers.append(tickers_ordered[i : i + cols_per_row])
 
-    for row_tickers in rows_of_tickers:
-        cols = st.columns(cols_per_row)
+    for row_idx, row_tickers in enumerate(rows_of_tickers):
+        if row_idx > 0:
+            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        cols = st.columns(cols_per_row, gap="medium")
         for col, ticker in zip(cols, row_tickers):
             weight = holdings[ticker]
             info = _get_asset_info(ticker)
@@ -336,29 +413,35 @@ def _render_asset_cards(
                     except (TypeError, ValueError):
                         pass
 
-                # Top 5 holdings
-                raw_holdings = info.get("holdings") or []
-                if raw_holdings:
-                    holding_lines = []
-                    for h in raw_holdings[:5]:
-                        h_name = h.get("holdingName") or h.get("symbol") or "—"
-                        h_pct = h.get("holdingPercent")
-                        if h_pct is not None:
-                            try:
-                                h_line = f"{h_name} ({float(h_pct):.1%})"
-                            except (TypeError, ValueError):
-                                h_line = h_name
-                        else:
-                            h_line = h_name
-                        holding_lines.append(h_line)
-                    holdings_str = "<br>".join(holding_lines)
+                # Top 5 holdings via funds_data (with info fallback)
+                top5 = _get_top_holdings(ticker)
+                if top5:
+                    rows_html = ""
+                    for rank, (h_name, h_pct) in enumerate(top5, start=1):
+                        pct_str = f"{h_pct:.1%}" if h_pct is not None else "—"
+                        rows_html += (
+                            f"<div style='display:flex;justify-content:space-between;"
+                            f"align-items:baseline;padding:2px 0;'>"
+                            f"<span style='color:#8892a0;white-space:nowrap;overflow:hidden;"
+                            f"text-overflow:ellipsis;max-width:78%;'>"
+                            f"{rank}.&nbsp; {h_name}</span>"
+                            f"<span style='font-family:\"JetBrains Mono\",monospace;"
+                            f"font-size:0.72rem;color:#c4cad6;white-space:nowrap;'>"
+                            f"{pct_str}</span>"
+                            f"</div>"
+                        )
                     body_parts.append(
-                        f"<div style='margin-top:6px;'>"
+                        f"<div style='margin-top:8px;'>"
                         f"<div style='font-size:0.68rem;color:#636b78;text-transform:uppercase;"
-                        f"letter-spacing:0.8px;font-weight:600;margin-bottom:3px;'>Top Holdings</div>"
-                        f"<div style='font-size:0.73rem;color:#c4cad6;line-height:1.5;"
-                        f"font-family:\"DM Sans\",sans-serif;'>{holdings_str}</div>"
+                        f"letter-spacing:0.8px;font-weight:600;margin-bottom:4px;'>Top Holdings</div>"
+                        f"<div style='font-size:0.72rem;line-height:1.6;"
+                        f"font-family:\"DM Sans\",sans-serif;'>{rows_html}</div>"
                         f"</div>"
+                    )
+                else:
+                    body_parts.append(
+                        f"<div style='margin-top:8px;font-size:0.72rem;color:#636b78;"
+                        f"font-style:italic;'>Holdings data unavailable</div>"
                     )
 
             else:
@@ -400,7 +483,8 @@ def _render_asset_cards(
             # Assemble full card
             card_html = f"""
 <div style='background:#1a1e2a;border:1px solid #252836;border-radius:10px;
-            padding:14px 16px 12px 16px;height:100%;font-family:"DM Sans",sans-serif;'>
+            padding:14px 16px 12px 16px;min-height:480px;display:flex;
+            flex-direction:column;font-family:"DM Sans",sans-serif;'>
   <!-- Header row: ticker + weight -->
   <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;'>
     <span style='font-size:1.05rem;font-weight:700;color:#f0f2f5;
@@ -411,13 +495,14 @@ def _render_asset_cards(
   </div>
   <!-- Name + type -->
   <div style='font-size:0.78rem;color:#a0a8b8;margin-bottom:2px;
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
-       title='{long_name}'>{long_name}</div>
+              line-height:1.4;word-break:break-word;'>{long_name}</div>
   <div style='display:inline-block;background:#1e2d1e;color:#68d391;padding:1px 6px;
               border-radius:3px;font-size:0.63rem;font-weight:700;letter-spacing:0.8px;
               text-transform:uppercase;margin-bottom:8px;'>{asset_type}</div>
   <!-- Type-specific fields -->
   {body_html}
+  <!-- Push returns to bottom -->
+  <div style='flex:1'></div>
   <!-- Returns row -->
   <div style='margin-top:10px;padding-top:8px;border-top:1px solid #252836;'>
     {_return_html("YTD", ytd)}
@@ -429,7 +514,8 @@ def _render_asset_cards(
                 st.markdown(card_html, unsafe_allow_html=True)
 
 
-_render_asset_cards(holdings, returns_wide)
+prices_wide: pd.DataFrame | None = st.session_state.get("prices")
+_render_asset_cards(holdings, prices_wide)
 
 st.divider()
 
