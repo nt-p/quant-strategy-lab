@@ -52,6 +52,30 @@ _CATEGORY_BADGE_HTML = {
     ),
 }
 
+def _rebalance_weights(changed_ticker: str, all_tickers: list[str]) -> None:
+    """on_change callback: proportionally redistribute weights when one input changes."""
+    curr = st.session_state[f"hub_weight_{changed_ticker}"]
+    prev = st.session_state.get(f"_hub_weight_prev_{changed_ticker}", curr)
+    delta = curr - prev
+    if abs(delta) < 1e-9:
+        return
+    others = [t for t in all_tickers if t != changed_ticker]
+    others_sum = sum(st.session_state.get(f"hub_weight_{t}", 0.0) for t in others)
+    if others_sum > 0:
+        for t in others:
+            w = st.session_state[f"hub_weight_{t}"]
+            new_w = max(0.0, min(100.0, w - delta * (w / others_sum)))
+            st.session_state[f"hub_weight_{t}"] = round(new_w, 2)
+    elif delta < 0 and others:
+        share = round((-delta) / len(others), 2)
+        for t in others:
+            st.session_state[f"hub_weight_{t}"] = min(100.0, share)
+    for t in all_tickers:
+        st.session_state[f"_hub_weight_prev_{t}"] = round(
+            st.session_state.get(f"hub_weight_{t}", 0.0), 2
+        )
+
+
 _BENCHMARK_LABELS: dict[str, str] = {
     BENCHMARK_TICKER: "S&P 500 (SPY)",
     AU_BENCHMARK_TICKER: "S&P/ASX 200 (STW.AX)",
@@ -158,32 +182,50 @@ def render_portfolio_builder_sidebar() -> dict:
             "font-family:\"DM Sans\",sans-serif;'>Weights (%)</p>",
             unsafe_allow_html=True,
         )
-        equal_w = round(100.0 / len(tickers), 1)
+        equal_w = round(100.0 / len(tickers), 2)
+
+        # Reset weights when ticker list changes
+        prev_tickers = st.session_state.get("_hub_tickers_prev", [])
+        if set(tickers) != set(prev_tickers):
+            for ticker in tickers:
+                st.session_state[f"hub_weight_{ticker}"] = equal_w
+                st.session_state[f"_hub_weight_prev_{ticker}"] = equal_w
+            st.session_state["_hub_tickers_prev"] = list(tickers)
+
+        # Initialise missing keys (first run)
+        for ticker in tickers:
+            if f"hub_weight_{ticker}" not in st.session_state:
+                st.session_state[f"hub_weight_{ticker}"] = equal_w
+            if f"_hub_weight_prev_{ticker}" not in st.session_state:
+                st.session_state[f"_hub_weight_prev_{ticker}"] = st.session_state[f"hub_weight_{ticker}"]
+
+        # Render number inputs — on_change handles redistribution
         total_w = 0.0
         for ticker in tickers:
             w = st.sidebar.number_input(
                 ticker,
                 min_value=0.0,
                 max_value=100.0,
-                value=equal_w,
-                step=1.0,
-                format="%.1f",
+                step=0.01,
+                format="%.2f",
                 key=f"hub_weight_{ticker}",
+                on_change=_rebalance_weights,
+                args=(ticker, tickers),
             )
             weights[ticker] = w
             total_w += w
 
         # Weight sum indicator
-        if abs(total_w - 100.0) < 0.5:
-            st.sidebar.success(f"Weights sum to {total_w:.1f}%", icon="✓")
+        if abs(total_w - 100.0) < 0.01:
+            st.sidebar.success(f"Weights sum to {total_w:.2f}%", icon="✅")
         else:
             remainder = 100.0 - total_w
             color = "#f6ad55" if abs(remainder) < 20 else "#f56565"
-            direction = f"+{remainder:.1f}%" if remainder > 0 else f"{remainder:.1f}%"
+            direction = f"+{remainder:.2f}%" if remainder > 0 else f"{remainder:.2f}%"
             st.sidebar.markdown(
                 f"<p style='font-size:0.78rem;color:{color};margin:0;"
                 f"font-family:\"DM Sans\",sans-serif;'>"
-                f"Weights sum to {total_w:.1f}% ({direction} to 100%)</p>",
+                f"Weights sum to {total_w:.2f}% ({direction} to 100%)</p>",
                 unsafe_allow_html=True,
             )
 

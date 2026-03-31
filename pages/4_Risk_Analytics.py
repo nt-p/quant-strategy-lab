@@ -489,8 +489,10 @@ with tab_stress:
             step=50,
         )
 
+    # holdings are stored as decimal fractions (0-1); the function expects 0-100 scale
+    holdings_pct = {t: w * 100.0 for t, w in holdings.items()}
     sensitivity  = compute_sensitivity_impact(
-        holdings,
+        holdings_pct,
         equity_shock=equity_shock_pct / 100.0,
         yield_shock_bps=float(yield_shock_bps),
         spread_shock_bps=float(spread_shock_bps),
@@ -523,7 +525,7 @@ with tab_stress:
         rows = [
             {
                 "Ticker": t,
-                "Weight": holdings.get(t, 0.0) / 100.0,
+                "Weight": holdings.get(t, 0.0),  # already 0-1 decimal
                 "Asset Class": classified.get(t, "Equity"),
                 "Estimated Impact": v,
             }
