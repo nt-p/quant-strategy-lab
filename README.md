@@ -2,16 +2,7 @@
 
 An interactive backtesting platform for comparing trading and investing strategies against market benchmarks — animated equity races, full risk metrics, and a plug-and-play strategy framework.
 
----
-
-## Screenshots
-
-![Equity Race Animation — strategies compete across a user-defined date range](docs/screenshots/equity_race.png)
-
-![Strategy Comparison Table — Sharpe, Sortino, max drawdown, CAGR, and more](docs/screenshots/comparison_table.png)
-
-![Today's Allocation Panel — live portfolio weight recommendations per strategy](docs/screenshots/allocation_panel.png)
-
+Access: https://quant-strategy-lab.streamlit.app
 ---
 
 ## Features
