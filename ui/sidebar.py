@@ -84,23 +84,45 @@ _CATEGORY_BADGE_HTML = {
 }
 
 def _rebalance_weights(changed_ticker: str, all_tickers: list[str]) -> None:
-    """on_change callback: proportionally redistribute weights when one input changes."""
+    """on_change callback: proportionally redistribute weights when one input changes.
+
+    Scales the other tickers so they sum to exactly (100 - curr), then
+    distributes any 1-cent rounding residual to the largest of them.
+    This guarantees total_w == 100.00 after every change.
+    """
     curr = st.session_state[f"hub_weight_{changed_ticker}"]
     prev = st.session_state.get(f"_hub_weight_prev_{changed_ticker}", curr)
-    delta = curr - prev
-    if abs(delta) < 1e-9:
+    if abs(curr - prev) < 1e-9:
         return
+
     others = [t for t in all_tickers if t != changed_ticker]
+    if not others:
+        st.session_state[f"_hub_weight_prev_{changed_ticker}"] = round(curr, 2)
+        return
+
+    target_others = max(0.0, 100.0 - curr)
     others_sum = sum(st.session_state.get(f"hub_weight_{t}", 0.0) for t in others)
-    if others_sum > 0:
-        for t in others:
-            w = st.session_state[f"hub_weight_{t}"]
-            new_w = max(0.0, min(100.0, w - delta * (w / others_sum)))
-            st.session_state[f"hub_weight_{t}"] = round(new_w, 2)
-    elif delta < 0 and others:
-        share = round((-delta) / len(others), 2)
-        for t in others:
-            st.session_state[f"hub_weight_{t}"] = min(100.0, share)
+
+    if others_sum > 1e-9:
+        # Scale proportionally to the exact target
+        raw = {
+            t: max(0.0, st.session_state.get(f"hub_weight_{t}", 0.0) * target_others / others_sum)
+            for t in others
+        }
+    else:
+        share = target_others / len(others)
+        raw = {t: share for t in others}
+
+    # Round to 2 dp, then push any residual onto the largest ticker
+    rounded: dict[str, float] = {t: round(w, 2) for t, w in raw.items()}
+    residual = round(target_others - sum(rounded.values()), 2)
+    if abs(residual) >= 0.005:
+        largest = max(others, key=lambda t: rounded.get(t, 0.0))
+        rounded[largest] = round(rounded[largest] + residual, 2)
+
+    for t, w in rounded.items():
+        st.session_state[f"hub_weight_{t}"] = w
+
     for t in all_tickers:
         st.session_state[f"_hub_weight_prev_{t}"] = round(
             st.session_state.get(f"hub_weight_{t}", 0.0), 2
@@ -269,9 +291,16 @@ def render_portfolio_builder_sidebar() -> dict:
                 if template_choice != "(custom)"
                 else {}
             )
+            # Assign weights; give the last ticker any residual so sum == 100.0
+            assigned: list[tuple[str, float]] = []
             for ticker in tickers:
-                # Use template weight if available, else equal-weight
                 w = template_weights.get(ticker, equal_w)
+                assigned.append((ticker, round(w, 2)))
+            residual = round(100.0 - sum(w for _, w in assigned), 2)
+            if abs(residual) >= 0.005 and assigned:
+                t0, w0 = assigned[-1]
+                assigned[-1] = (t0, round(w0 + residual, 2))
+            for ticker, w in assigned:
                 st.session_state[f"hub_weight_{ticker}"] = w
                 st.session_state[f"_hub_weight_prev_{ticker}"] = w
             st.session_state["_hub_tickers_prev"] = list(tickers)
