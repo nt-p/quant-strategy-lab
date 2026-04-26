@@ -298,3 +298,26 @@ def inject_css() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
     if not st.session_state.get("dark_mode", True):
         st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
+
+
+def apply_theme() -> None:
+    """Preferred alias for inject_css() — call once at the top of every page."""
+    inject_css()
+
+
+def apply_theme_to_plotly_figure(fig: object) -> object:
+    """Apply the app's dark/light Plotly theme to a figure in-place.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The figure to style.
+
+    Returns
+    -------
+    The same figure, for chaining.
+    """
+    fig.update_layout(**CHART_LAYOUT)  # type: ignore[union-attr]
+    fig.update_xaxes(**AXIS_STYLE)     # type: ignore[union-attr]
+    fig.update_yaxes(**AXIS_STYLE)     # type: ignore[union-attr]
+    return fig
