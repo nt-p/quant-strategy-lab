@@ -24,9 +24,40 @@ from data.universe import (
     AU_CURATED_UNIVERSE,
     BENCHMARK_TICKER,
     CURATED_UNIVERSE,
+    load_ticker_search_options,
 )
 from strategies.base import StrategyCategory
 from strategies.registry import discover_strategies
+
+# ── Portfolio templates ────────────────────────────────────────────────────────
+# Each value maps ticker → weight (%). Must sum to 100.
+PORTFOLIO_TEMPLATES: dict[str, dict[str, float]] = {
+    "Classic 60/40": {
+        "SPY": 60.0, "AGG": 40.0,
+    },
+    "All Weather (Dalio)": {
+        "SPY": 30.0, "TLT": 40.0, "IEF": 15.0, "GLD": 7.5, "DBC": 7.5,
+    },
+    "Permanent Portfolio (Browne)": {
+        "SPY": 25.0, "TLT": 25.0, "GLD": 25.0, "SHY": 25.0,
+    },
+    "Global 60/40": {
+        "SPY": 36.0, "EFA": 24.0, "TLT": 28.0, "GLD": 12.0,
+    },
+    "US Tech Tilt": {
+        "QQQ": 40.0, "SPY": 30.0, "TLT": 15.0, "GLD": 15.0,
+    },
+    "Endowment Style": {
+        "SPY": 35.0, "EFA": 15.0, "VNQ": 10.0, "GLD": 10.0, "TLT": 20.0, "HYG": 10.0,
+    },
+    "ASX Core": {
+        "VAS.AX": 50.0, "VGS.AX": 30.0, "IAF.AX": 10.0, "VAP.AX": 10.0,
+    },
+    "Vanguard Diversified Growth (ASX)": {
+        "VGS.AX": 52.0, "VAS.AX": 18.0, "VGE.AX": 10.0,
+        "IAF.AX": 10.0, "VAP.AX": 5.0, "VISM.AX": 5.0,
+    },
+}
 
 _CATEGORY_LABELS = {
     StrategyCategory.PASSIVE: "Passive / Traditional",
@@ -105,6 +136,16 @@ def _brand_header() -> None:
     )
 
 
+# ── Theme toggle (shared) ─────────────────────────────────────────────────────
+
+def _render_theme_toggle() -> None:
+    """Light / dark mode toggle fixed at the bottom of every sidebar."""
+    st.sidebar.markdown("---")
+    dark = st.session_state.get("dark_mode", True)
+    label = "🌙 Dark mode" if dark else "☀️ Light mode"
+    st.sidebar.toggle(label, value=dark, key="dark_mode")
+
+
 # ── 1. Portfolio Hub sidebar ───────────────────────────────────────────────────
 
 def render_portfolio_builder_sidebar() -> dict:
@@ -153,22 +194,58 @@ def render_portfolio_builder_sidebar() -> dict:
     # ── Asset Picker ─────────────────────────────────────────────────────────
     st.sidebar.header("Holdings")
 
-    group_choice = st.sidebar.selectbox(
-        "Quick-add group",
-        options=["(none)"] + list(active_universe.keys()),
+    # Template picker
+    template_names = ["(custom)"] + list(PORTFOLIO_TEMPLATES.keys())
+    template_choice: str = st.sidebar.selectbox(
+        "Portfolio template",
+        options=template_names,
+        key="_hub_template_selection",
+        help="Pre-fill holdings and weights from a known allocation strategy.",
     )
 
-    default_tickers: list[str] = []
-    if group_choice != "(none)":
-        default_tickers = active_universe[group_choice]
+    # Apply template when selection changes — update multiselect + weights
+    # before the multiselect widget is rendered so it picks up the new default.
+    prev_template = st.session_state.get("_hub_template_prev", "(custom)")
+    if template_choice != prev_template:
+        if template_choice != "(custom)":
+            tmpl = PORTFOLIO_TEMPLATES[template_choice]
+            st.session_state["_hub_ticker_multiselect"] = list(tmpl.keys())
+            for ticker, w in tmpl.items():
+                st.session_state[f"hub_weight_{ticker}"] = w
+                st.session_state[f"_hub_weight_prev_{ticker}"] = w
+            st.session_state["_hub_tickers_prev"] = list(tmpl.keys())
+        else:
+            st.session_state["_hub_ticker_multiselect"] = []
+        st.session_state["_hub_template_prev"] = template_choice
 
-    manual_input = st.sidebar.text_input(
-        "Add tickers (comma-separated)",
-        placeholder="e.g. AAPL, MSFT  or  BHP.AX, CBA.AX",
+    # Determine search market filter
+    search_market = (
+        "US" if market == MARKET_US else "AU" if market == MARKET_AU else "BOTH"
     )
-    manual_tickers = [t.strip().upper() for t in manual_input.split(",") if t.strip()]
+    search_tickers, label_map = load_ticker_search_options(search_market)
 
-    tickers = list(dict.fromkeys(default_tickers + manual_tickers))
+    # Ensure any pre-seeded tickers that aren't in the CSV still appear as options
+    current_selection: list[str] = st.session_state.get("_hub_ticker_multiselect", [])
+    extra_options = [t for t in current_selection if t not in label_map]
+    all_options = search_tickers + extra_options
+
+    selected_tickers: list[str] = st.sidebar.multiselect(
+        "Search tickers",
+        options=all_options,
+        format_func=lambda t: label_map.get(t, t),
+        key="_hub_ticker_multiselect",
+        placeholder="Type to search by name, ticker, or sector…",
+    )
+
+    # Fallback text input for tickers not in the bundled CSV
+    extra_input = st.sidebar.text_input(
+        "Unlisted tickers",
+        placeholder="e.g. BRK-B, 2330.TW, RMD.AX",
+        help="Comma-separated tickers not found in the search list above.",
+    )
+    extra_tickers = [t.strip().upper() for t in extra_input.split(",") if t.strip()]
+
+    tickers = list(dict.fromkeys(selected_tickers + extra_tickers))
 
     if not tickers:
         st.sidebar.warning("Select at least one asset.")
@@ -187,9 +264,16 @@ def render_portfolio_builder_sidebar() -> dict:
         # Reset weights when ticker list changes
         prev_tickers = st.session_state.get("_hub_tickers_prev", [])
         if set(tickers) != set(prev_tickers):
+            template_weights = (
+                PORTFOLIO_TEMPLATES.get(template_choice, {})
+                if template_choice != "(custom)"
+                else {}
+            )
             for ticker in tickers:
-                st.session_state[f"hub_weight_{ticker}"] = equal_w
-                st.session_state[f"_hub_weight_prev_{ticker}"] = equal_w
+                # Use template weight if available, else equal-weight
+                w = template_weights.get(ticker, equal_w)
+                st.session_state[f"hub_weight_{ticker}"] = w
+                st.session_state[f"_hub_weight_prev_{ticker}"] = w
             st.session_state["_hub_tickers_prev"] = list(tickers)
 
         # Initialise missing keys (first run)
@@ -251,6 +335,8 @@ def render_portfolio_builder_sidebar() -> dict:
         use_container_width=True,
         help="Fetch price data and compute portfolio analytics.",
     )
+
+    _render_theme_toggle()
 
     return {
         "tickers": tickers,
@@ -363,6 +449,8 @@ def render_strategy_sidebar() -> dict:
         ),
     )
 
+    _render_theme_toggle()
+
     return {
         "selected_strategy_ids": selected_strategy_ids,
         "initial_capital": float(initial_capital),
@@ -428,6 +516,8 @@ def render_portfolio_sidebar() -> None:
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Return to **Portfolio Hub** to change holdings or **Strategy Lab** to run a backtest.")
+
+    _render_theme_toggle()
 
 
 # ── 4. Guard ───────────────────────────────────────────────────────────────────

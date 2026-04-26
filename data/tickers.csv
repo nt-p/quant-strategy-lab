@@ -1,0 +1,164 @@
+ticker,name,sector,market
+SPY,SPDR S&P 500 ETF Trust,Equity ETF,US
+QQQ,Invesco QQQ Trust (Nasdaq 100),Equity ETF,US
+IWM,iShares Russell 2000 ETF,Equity ETF,US
+DIA,SPDR Dow Jones Industrial Average ETF,Equity ETF,US
+VOO,Vanguard S&P 500 ETF,Equity ETF,US
+VTI,Vanguard Total Stock Market ETF,Equity ETF,US
+SCHB,Schwab U.S. Broad Market ETF,Equity ETF,US
+ITOT,iShares Core S&P Total U.S. Stock Market ETF,Equity ETF,US
+XLF,Financial Select Sector SPDR Fund,Sector ETF,US
+XLK,Technology Select Sector SPDR Fund,Sector ETF,US
+XLE,Energy Select Sector SPDR Fund,Sector ETF,US
+XLV,Health Care Select Sector SPDR Fund,Sector ETF,US
+XLI,Industrial Select Sector SPDR Fund,Sector ETF,US
+XLY,Consumer Discretionary Select Sector SPDR,Sector ETF,US
+XLP,Consumer Staples Select Sector SPDR Fund,Sector ETF,US
+XLU,Utilities Select Sector SPDR Fund,Sector ETF,US
+XLB,Materials Select Sector SPDR Fund,Sector ETF,US
+XLRE,Real Estate Select Sector SPDR Fund,Sector ETF,US
+XLC,Communication Services Select Sector SPDR,Sector ETF,US
+TLT,iShares 20+ Year Treasury Bond ETF,Fixed Income,US
+IEF,iShares 7-10 Year Treasury Bond ETF,Fixed Income,US
+SHY,iShares 1-3 Year Treasury Bond ETF,Fixed Income,US
+HYG,iShares iBoxx High Yield Corporate Bond ETF,Fixed Income,US
+LQD,iShares iBoxx IG Corporate Bond ETF,Fixed Income,US
+BND,Vanguard Total Bond Market ETF,Fixed Income,US
+AGG,iShares Core U.S. Aggregate Bond ETF,Fixed Income,US
+VCIT,Vanguard Intermediate-Term Corporate Bond ETF,Fixed Income,US
+VCSH,Vanguard Short-Term Corporate Bond ETF,Fixed Income,US
+MUB,iShares National Muni Bond ETF,Fixed Income,US
+BNDX,Vanguard Total International Bond ETF,Fixed Income,US
+GLD,SPDR Gold Shares,Alternatives,US
+IAU,iShares Gold Trust,Alternatives,US
+SLV,iShares Silver Trust,Alternatives,US
+DBC,Invesco DB Commodity Index Tracking Fund,Alternatives,US
+PDBC,Invesco Optimum Yield Diversified Commodity,Alternatives,US
+VNQ,Vanguard Real Estate ETF,Alternatives,US
+BITO,ProShares Bitcoin Strategy ETF,Alternatives,US
+GSG,iShares S&P GSCI Commodity-Indexed Trust,Alternatives,US
+EFA,iShares MSCI EAFE ETF,International,US
+EEM,iShares MSCI Emerging Markets ETF,International,US
+VWO,Vanguard FTSE Emerging Markets ETF,International,US
+MCHI,iShares MSCI China ETF,International,US
+EWJ,iShares MSCI Japan ETF,International,US
+EWG,iShares MSCI Germany ETF,International,US
+EWU,iShares MSCI United Kingdom ETF,International,US
+EWC,iShares MSCI Canada ETF,International,US
+EWA,iShares MSCI Australia ETF,International,US
+EWL,iShares MSCI Switzerland ETF,International,US
+ACWI,iShares MSCI ACWI ETF,International,US
+VEA,Vanguard FTSE Developed Markets ETF,International,US
+AAPL,Apple Inc.,Technology,US
+MSFT,Microsoft Corporation,Technology,US
+GOOGL,Alphabet Inc. (Google),Technology,US
+AMZN,Amazon.com Inc.,Consumer Discretionary,US
+NVDA,NVIDIA Corporation,Technology,US
+META,Meta Platforms Inc.,Communication Services,US
+TSLA,Tesla Inc.,Consumer Discretionary,US
+BRK-B,Berkshire Hathaway Class B,Financials,US
+JPM,JPMorgan Chase & Co.,Financials,US
+V,Visa Inc.,Financials,US
+WMT,Walmart Inc.,Consumer Staples,US
+JNJ,Johnson & Johnson,Health Care,US
+PG,Procter & Gamble Co.,Consumer Staples,US
+HD,Home Depot Inc.,Consumer Discretionary,US
+MA,Mastercard Inc.,Financials,US
+BAC,Bank of America Corp.,Financials,US
+XOM,Exxon Mobil Corporation,Energy,US
+CVX,Chevron Corporation,Energy,US
+LLY,Eli Lilly and Company,Health Care,US
+ABBV,AbbVie Inc.,Health Care,US
+PFE,Pfizer Inc.,Health Care,US
+KO,Coca-Cola Company,Consumer Staples,US
+PEP,PepsiCo Inc.,Consumer Staples,US
+MRK,Merck & Co. Inc.,Health Care,US
+COST,Costco Wholesale Corporation,Consumer Staples,US
+AVGO,Broadcom Inc.,Technology,US
+TMO,Thermo Fisher Scientific Inc.,Health Care,US
+ACN,Accenture plc,Technology,US
+MCD,McDonald's Corporation,Consumer Discretionary,US
+NKE,NIKE Inc.,Consumer Discretionary,US
+NEE,NextEra Energy Inc.,Utilities,US
+UNH,UnitedHealth Group Inc.,Health Care,US
+RTX,RTX Corporation,Industrials,US
+HON,Honeywell International Inc.,Industrials,US
+INTC,Intel Corporation,Technology,US
+AMD,Advanced Micro Devices Inc.,Technology,US
+ORCL,Oracle Corporation,Technology,US
+QCOM,QUALCOMM Inc.,Technology,US
+CRM,Salesforce Inc.,Technology,US
+ADBE,Adobe Inc.,Technology,US
+NFLX,Netflix Inc.,Communication Services,US
+PYPL,PayPal Holdings Inc.,Financials,US
+DIS,The Walt Disney Company,Communication Services,US
+CSCO,Cisco Systems Inc.,Technology,US
+IBM,International Business Machines Corp.,Technology,US
+GE,GE Aerospace,Industrials,US
+CAT,Caterpillar Inc.,Industrials,US
+BA,Boeing Company,Industrials,US
+GS,Goldman Sachs Group Inc.,Financials,US
+MS,Morgan Stanley,Financials,US
+WFC,Wells Fargo & Company,Financials,US
+BLK,BlackRock Inc.,Financials,US
+SCHW,Charles Schwab Corporation,Financials,US
+AMGN,Amgen Inc.,Health Care,US
+GILD,Gilead Sciences Inc.,Health Care,US
+BMY,Bristol-Myers Squibb Company,Health Care,US
+UPS,United Parcel Service Inc.,Industrials,US
+FDX,FedEx Corporation,Industrials,US
+MMM,3M Company,Industrials,US
+DE,Deere & Company,Industrials,US
+LMT,Lockheed Martin Corporation,Industrials,US
+STW.AX,SPDR S&P/ASX 200 Fund,Equity ETF,AU
+IOZ.AX,iShares Core S&P/ASX 200 ETF,Equity ETF,AU
+VAS.AX,Vanguard Australian Shares Index ETF,Equity ETF,AU
+A200.AX,BetaShares Australia 200 ETF,Equity ETF,AU
+VHY.AX,Vanguard Australian Shares High Yield ETF,Equity ETF,AU
+MVW.AX,VanEck Australian Equal Weight ETF,Equity ETF,AU
+QUAL.AX,VanEck MSCI World ex Australia Quality ETF,International,AU
+OZR.AX,SPDR S&P/ASX 200 Resources Fund,Sector ETF,AU
+OZF.AX,SPDR S&P/ASX 200 Financials Fund,Sector ETF,AU
+NDQ.AX,BetaShares Nasdaq 100 ETF,International,AU
+IAF.AX,iShares Core Composite Bond ETF,Fixed Income,AU
+BOND.AX,PIMCO Australian Bond Index ETF,Fixed Income,AU
+GOVT.AX,BetaShares Australian Government Bond ETF,Fixed Income,AU
+PLUS.AX,VanEck Australian Corporate Bond ETF,Fixed Income,AU
+VAF.AX,Vanguard Australian Fixed Interest Index ETF,Fixed Income,AU
+VAP.AX,Vanguard Australian Property Securities Index ETF,Alternatives,AU
+MVA.AX,VanEck Vectors Australian Property ETF,Alternatives,AU
+GOLD.AX,BetaShares Gold Bullion ETF (AUD Hedged),Alternatives,AU
+QAU.AX,BetaShares Gold Bullion ETF (Unhedged),Alternatives,AU
+IVV.AX,iShares S&P 500 ETF,International,AU
+IOO.AX,iShares Global 100 ETF,International,AU
+VGS.AX,Vanguard MSCI Index International Shares ETF,International,AU
+VISM.AX,Vanguard MSCI International Small Companies Index ETF,International,AU
+VGE.AX,Vanguard FTSE Emerging Markets Shares ETF,International,AU
+ASIA.AX,BetaShares Asia Technology Tigers ETF,International,AU
+HACK.AX,BetaShares Global Cybersecurity ETF,International,AU
+BHP.AX,BHP Group Limited,Materials,AU
+CBA.AX,Commonwealth Bank of Australia,Financials,AU
+CSL.AX,CSL Limited,Health Care,AU
+WBC.AX,Westpac Banking Corporation,Financials,AU
+NAB.AX,National Australia Bank Limited,Financials,AU
+ANZ.AX,ANZ Group Holdings Limited,Financials,AU
+WES.AX,Wesfarmers Limited,Consumer Discretionary,AU
+MQG.AX,Macquarie Group Limited,Financials,AU
+FMG.AX,Fortescue Ltd,Materials,AU
+RIO.AX,Rio Tinto Limited,Materials,AU
+WDS.AX,Woodside Energy Group Ltd,Energy,AU
+TLS.AX,Telstra Group Limited,Communication Services,AU
+WOW.AX,Woolworths Group Limited,Consumer Staples,AU
+ALL.AX,Aristocrat Leisure Limited,Consumer Discretionary,AU
+GMG.AX,Goodman Group,Real Estate,AU
+REA.AX,REA Group Limited,Communication Services,AU
+COL.AX,Coles Group Limited,Consumer Staples,AU
+S32.AX,South32 Limited,Materials,AU
+NCM.AX,Newmont Australia,Materials,AU
+MIN.AX,Mineral Resources Limited,Materials,AU
+NST.AX,Northern Star Resources Limited,Materials,AU
+EVN.AX,Evolution Mining Limited,Materials,AU
+TCL.AX,Transurban Group,Industrials,AU
+APA.AX,APA Group,Utilities,AU
+QBE.AX,QBE Insurance Group Limited,Financials,AU
+SHL.AX,Sonic Healthcare Limited,Health Care,AU

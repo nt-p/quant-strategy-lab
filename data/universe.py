@@ -5,6 +5,10 @@ AU_CURATED_UNIVERSE provides grouped shortcuts for Australian (ASX) assets.
 Users can also type any valid yfinance ticker manually.
 """
 
+from __future__ import annotations
+
+from pathlib import Path
+
 import pandas as pd
 
 CURATED_UNIVERSE: dict[str, list[str]] = {
@@ -62,3 +66,47 @@ def is_au_ticker(ticker: str) -> bool:
 def get_ticker_currency(ticker: str) -> str:
     """Return the display currency for a ticker (AUD for .AX, USD otherwise)."""
     return "AUD" if is_au_ticker(ticker) else "USD"
+
+
+_SEARCH_CACHE: dict[str, dict[str, str]] | None = None
+
+
+def load_ticker_search_options(market: str = "both") -> tuple[list[str], dict[str, str]]:
+    """Load tickers from data/tickers.csv for the search-as-you-type picker.
+
+    Parameters
+    ----------
+    market:
+        "US", "AU", or "both" — filters rows by the ``market`` column.
+
+    Returns
+    -------
+    (tickers, label_map) where label_map maps ticker → display string
+    e.g. "AAPL" → "AAPL — Apple Inc. · Technology"
+    """
+    global _SEARCH_CACHE
+    if _SEARCH_CACHE is None:
+        csv_path = Path(__file__).parent / "tickers.csv"
+        df = pd.read_csv(csv_path)
+        _SEARCH_CACHE = {
+            row["market"]: df[df["market"] == row["market"]] for _, row in df[["market"]].drop_duplicates().iterrows()
+        }
+        # Build full cache keyed by market string
+        _SEARCH_CACHE = {}
+        for mkt, grp in df.groupby("market"):
+            _SEARCH_CACHE[str(mkt)] = {
+                row["ticker"]: f"{row['ticker']} — {row['name']} · {row['sector']}"
+                for _, row in grp.iterrows()
+            }
+
+    key = market.upper()
+    if key == "BOTH":
+        combined: dict[str, str] = {}
+        for v in _SEARCH_CACHE.values():
+            combined.update(v)
+        label_map = combined
+    else:
+        label_map = _SEARCH_CACHE.get(key, {})
+
+    tickers = list(label_map.keys())
+    return tickers, label_map

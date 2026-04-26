@@ -226,6 +226,75 @@ h3 {
 """
 
 
+_LIGHT_CSS = """
+<style>
+/* ── Light mode overrides (applied on top of base CSS) ── */
+html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+.main,
+.main .block-container {
+    background-color: #f5f7fa !important;
+    color: #1a1e2a !important;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #ffffff !important;
+    border-right: 1px solid #dde2eb !important;
+}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #4a5568 !important;
+    border-bottom: 1px solid #dde2eb !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label {
+    color: #2d3748 !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label:hover {
+    color: #1a202c !important;
+}
+
+[data-testid="stMetric"] {
+    background-color: #ffffff !important;
+    border: 1px solid #dde2eb !important;
+}
+[data-testid="stMetricLabel"] > div { color: #718096 !important; }
+[data-testid="stMetricValue"]       { color: #1a202c !important; }
+
+hr {
+    border-top: 1px solid #dde2eb !important;
+}
+
+.stCaption p, [data-testid="stCaptionContainer"] p {
+    color: #718096 !important;
+}
+
+h1, h2, h3 { color: #1a202c !important; }
+
+.stMarkdown p, .stMarkdown li, .stMarkdown { color: #2d3748 !important; }
+
+[data-testid="stSelectbox"] label,
+[data-testid="stTextInput"] label,
+[data-testid="stNumberInput"] label,
+[data-testid="stSlider"] label,
+[data-testid="stMultiSelect"] label {
+    color: #4a5568 !important;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    border-bottom: 1px solid #dde2eb !important;
+}
+
+.stDataFrame { background-color: #ffffff !important; }
+
+[data-testid="stAlert"] { background-color: #ebf8ff !important; }
+</style>
+"""
+
+
 def inject_css() -> None:
-    """Inject global CSS (Google Fonts + theme overrides) into the current page."""
+    """Inject global CSS into the current page, respecting the dark_mode toggle."""
     st.markdown(_CSS, unsafe_allow_html=True)
+    if not st.session_state.get("dark_mode", True):
+        st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
