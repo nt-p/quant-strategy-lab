@@ -11,6 +11,8 @@ pg = st.navigation(
         st.Page("pages/5_Portfolio_Construction.py", title="Portfolio Construction", icon="📐"),
         st.Page("pages/6_Macro_Dashboard.py",        title="Macro Dashboard",        icon="🌐"),
         st.Page("pages/7_ML_Lab.py",                 title="ML Lab",                 icon="🤖"),
+        st.Page("pages/8_FX_Analysis.py",            title="FX Analysis",            icon="💱"),
+        st.Page("pages/9_Fixed_Income.py",           title="Fixed Income",           icon="📈"),
         st.Page("pages/12_Retirement_Simulator.py",  title="Retirement Simulator",   icon="🏖"),
     ],
 )
